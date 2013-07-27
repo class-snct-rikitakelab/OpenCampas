@@ -21,6 +21,9 @@ S8	pwm_l, pwm_r;
 static U32	gyro_offset = 0;    /* gyro sensor offset value */
 
 
+	int boostflag = 0;
+	int turnflg = 0;
+
 
 /*
  *	各種状態定義
@@ -39,7 +42,8 @@ typedef enum{
 	RN_START,					//開始待ちモード
 	RN_RUN,						//対戦モード
 	RN_BOOST,					//ターボ
-	RN_PUSHBUTTON				//ボタン押下モード
+	RN_PUSHBUTTON,				//ボタン押下モード
+	RN_TURN
 } RN_SETTINGMODE;
 
 
@@ -48,6 +52,8 @@ typedef enum{
 	BC_TWO,
 	BC_THREE,
 	BC_FOUR,
+	BC_BACK1,
+	BC_BACK2
 } BC_MODE;
 
 //初期状態
@@ -136,6 +142,7 @@ void RN_setting()
 
 	static int wait_count = 0;
 	int flg;
+	int flg2;
 
 	switch (setting_mode){
 
@@ -151,13 +158,20 @@ void RN_setting()
 			cmd_forward = -((S8)bt_receive_buf[0])/2;	/* 前進量(そのままでは早すぎるので値を半分） */
 			cmd_turn = ((S8)bt_receive_buf[1]);			/* 旋回量 */
 
-			flg = boost();
+			boost();
 			
 			//ターボチェック
-			if(flg == 1)
+			if( boostflag == 1)
 			{
 				setting_mode = RN_BOOST;
 				ecrobot_sound_tone(980,512,100);
+				 boostflag = 0;
+			}
+
+			if(turnflg == 1){
+				setting_mode = RN_TURN;
+				ecrobot_sound_tone(980,512,100);
+				turnflg = 0;
 			}
 
 			else /* ターボ無し、スティック操作 */
@@ -184,6 +198,21 @@ void RN_setting()
 			/* 両車輪にモータ操作量の最大値を送信（スティック操作不可） */
 			nxt_motor_set_speed(NXT_PORT_C,127,1);
 			nxt_motor_set_speed(NXT_PORT_B,127,1);
+
+			/* 1秒後に通常モードに復帰 */
+			if(wait_count > 125)
+			{
+				setting_mode = RN_RUN;
+				wait_count = 0;
+			}
+			break;
+
+		case (RN_TURN):
+
+			wait_count++;
+			/* 両車輪にモータ操作量の最大値を送信（スティック操作不可） */
+			nxt_motor_set_speed(NXT_PORT_C,127,1);
+			nxt_motor_set_speed(NXT_PORT_B,-127,1);
 
 			/* 1秒後に通常モードに復帰 */
 			if(wait_count > 125)
@@ -223,7 +252,6 @@ void RN_setting()
 int boost(){
 
 	static int counter = 0;
-	int boostflag = 0;
 	
 
 	switch(boostCheckMode){
@@ -242,9 +270,17 @@ int boost(){
 //				ecrobot_sound_tone(982,512,10);
 				counter = 0;
 			}
-			else if(counter++ > BOOSTTIME/20)
+
+			if(cmd_forward < -20){
+				boostCheckMode = BC_BACK1;
+//				ecrobot_sound_tone(982,512,10);
+				counter = 0;
+			}
+
+			if(counter++ > BOOSTTIME/20)
 				boostCheckMode = BC_ONE;
 			break;
+
 		case (BC_THREE):	/* スティックが中央（2回目） */
 			if(cmd_forward == 0)
 			{
@@ -252,7 +288,7 @@ int boost(){
 //				ecrobot_sound_tone(982,512,10);
 				counter = 0;
 			}
-			else if(counter++ > BOOSTTIME/20)
+			if(counter++ > BOOSTTIME/20)
 				boostCheckMode = BC_ONE;
 			break;
 		case (BC_FOUR):		/* スティックが最上（2回目）（成功でターボフラグON） */
@@ -263,14 +299,40 @@ int boost(){
 				ecrobot_sound_tone(982,512,10);
 				counter = 0;
 			}
-			else if(counter++ > BOOSTTIME/20)
+
+			if(counter++ > BOOSTTIME/20)
 				boostCheckMode = BC_ONE;
 			break;
+
+		case (BC_BACK1):
+			if(cmd_forward == 0)
+			{
+				boostCheckMode = BC_BACK2;
+//				ecrobot_sound_tone(982,512,10);
+				counter = 0;
+			}
+			if(counter++ > BOOSTTIME/20)
+				boostCheckMode = BC_ONE;
+			break;
+			
+		case (BC_BACK2):
+			if(cmd_forward < -20)
+			{
+				 turnflg = 1;
+				boostCheckMode = BC_ONE;
+				ecrobot_sound_tone(982,512,10);
+				counter = 0;
+			}
+
+			if(counter++ > BOOSTTIME/20)
+			boostCheckMode = BC_ONE;
+			break;
+
 		default:
 			break;
 	}
 
-	return boostflag;	//ターボフラグ（0:無し、1:ターボON）
+	//return boostflag;	//ターボフラグ（0:無し、1:ターボON）
 }
 
 //キャリブレーション関数
