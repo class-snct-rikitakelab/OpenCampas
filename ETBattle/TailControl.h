@@ -7,7 +7,7 @@
 #include "balancer.h"
 #include "math.h"
 
-#define ANGLEOFDOWN		105	//尻尾走行
+#define ANGLEOFDOWN		95	//尻尾走行
 #define ANGLEOFZERO		0
 #define ANGLEOFUP		6	//尻尾不使用
 

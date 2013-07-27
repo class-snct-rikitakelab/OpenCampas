@@ -20,6 +20,8 @@ S8	pwm_l, pwm_r;
 
 static U32	gyro_offset = 0;    /* gyro sensor offset value */
 
+
+
 /*
  *	各種状態定義
  */
@@ -133,6 +135,7 @@ void RN_setting()
 {
 
 	static int wait_count = 0;
+	int flg;
 
 	switch (setting_mode){
 
@@ -147,9 +150,11 @@ void RN_setting()
 			
 			cmd_forward = -((S8)bt_receive_buf[0])/2;	/* 前進量(そのままでは早すぎるので値を半分） */
 			cmd_turn = ((S8)bt_receive_buf[1]);			/* 旋回量 */
+
+			flg = boost();
 			
 			//ターボチェック
-			if(boost() == 1)
+			if(flg == 1)
 			{
 				setting_mode = RN_BOOST;
 				ecrobot_sound_tone(980,512,100);
@@ -219,17 +224,19 @@ int boost(){
 
 	static int counter = 0;
 	int boostflag = 0;
+	
 
 	switch(boostCheckMode){
 		case (BC_ONE):	/* スティックが中央（1回目） */
 			if(cmd_forward == 0)
 			{
 				boostCheckMode = BC_TWO;
+				//ecrobot_sound_tone(982,512,10);
 				counter = 0;
 			}
 			break;
 		case(BC_TWO):	/* スティックが最上（1回目） */
-			if(cmd_forward == 50)
+			if(cmd_forward > 30)
 			{
 				boostCheckMode = BC_THREE;
 //				ecrobot_sound_tone(982,512,10);
@@ -249,11 +256,11 @@ int boost(){
 				boostCheckMode = BC_ONE;
 			break;
 		case (BC_FOUR):		/* スティックが最上（2回目）（成功でターボフラグON） */
-			if(cmd_forward == 50)
+			if(cmd_forward > 30)
 			{
 				boostflag = 1;
 				boostCheckMode = BC_ONE;
-//				ecrobot_sound_tone(982,512,10);
+				ecrobot_sound_tone(982,512,10);
 				counter = 0;
 			}
 			else if(counter++ > BOOSTTIME/20)
